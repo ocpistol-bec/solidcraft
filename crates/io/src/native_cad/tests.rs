@@ -7,6 +7,16 @@ const BLOCK_FCSTD: &[u8] = include_bytes!("fixtures/block.FCStd");
 /// (`fixtures/make_block_3dm.py`).
 const BLOCK_3DM: &[u8] = include_bytes!("fixtures/block.3dm");
 
+/// A 2 × 2 × 1 mm box: a 2 × 2 square sketch on the XY plane extruded 1 mm, saved by
+/// Autodesk Inventor 2027 (the reference fixture of the Corliss format library; no open-source
+/// Inventor writer exists).
+const BOX_IPT: &[u8] = include_bytes!("fixtures/box.ipt");
+
+/// The one-occurrence assembly of that part, identity-placed, saved by Inventor 2027 (same
+/// source). The occurrence's part geometry is embedded in the `.iam` itself, so the file
+/// imports without its sibling.
+const BOX_IAM: &[u8] = include_bytes!("fixtures/box.iam");
+
 /// STEP text, which these importers refuse.
 const STEP_TEXT: &str = "ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n";
 
@@ -30,10 +40,13 @@ fn imports_the_block(bytes: &[u8], file: &str) {
 #[test]
 fn extensions() {
     assert!(is_native_cad_path("a/Part.FCStd") && is_native_cad_path("x.3DM") && is_native_cad_path("y.fcstd"));
-    for other in ["c.sat", "c.sab", "c.smt", "c.smb", "c.f3d", "c.sldprt", "c.step", "fcstd"] {
+    for other in ["c.sat", "c.sab", "c.smt", "c.smb", "c.f3d", "c.sldprt", "c.idw", "c.ipj", "c.step", "fcstd"] {
         assert!(!is_native_cad_path(other), "{other}");
     }
-    assert!(crate::is_step_path("c.FCStd") && crate::is_step_path("c.3dm"), "read as an Import feature like STEP and IGES");
+    assert!(
+        crate::is_step_path("c.FCStd") && crate::is_step_path("c.3dm") && crate::is_step_path("c.ipt") && crate::is_step_path("c.IAM"),
+        "read as an Import feature like STEP and IGES"
+    );
 }
 
 #[test]
@@ -50,18 +63,54 @@ fn rhino_box_imports_as_a_solid() {
     imports_the_block(bytes, "block.3dm");
 }
 
-/// Only FreeCAD and Rhino contents are read: STEP text, garbage, a bad ZIP and empty input are
-/// refused with a message, as are ACIS, ShapeManager and commercial formats whatever their bytes.
+/// The Inventor fixture is a 2 × 2 cm sketch extruded 1 cm: Inventor stores lengths in
+/// centimetres, so the box is 20 × 20 × 10 mm (4000 mm³), through the same Import feature as
+/// STEP.
+fn imports_the_inventor_box(bytes: &[u8], file: &str) {
+    let step = native_cad_to_step(bytes, file).unwrap().0;
+    assert!(step.contains("MANIFOLD_SOLID_BREP"), "{file}: no solid in the restated STEP");
+    let sf = crate::step_import_feature(bytes, &format!("dir/{file}")).unwrap();
+    assert_eq!(sf.import.bodies.len(), 1, "{file}");
+    let v = solidcraft_kernel::measure(&sf.import.bodies[0].body).unwrap().volume;
+    assert!((v - 4000.0).abs() < 1e-6, "{file}: volume {v}");
+    // Inventor's product name is the part's template ("Standard (in)"); else the file name.
+    let stem = file.rsplit_once('.').unwrap().0;
+    assert!(["Standard (in)", stem].contains(&sf.body_names[0].as_str()), "{file}: {:?}", sf.body_names);
+    assert!(!step.contains("cadmpeg_model"), "{file}");
+}
+
+#[test]
+fn inventor_part_imports_as_a_solid() {
+    let bytes = BOX_IPT;
+    assert!(bytes.starts_with(b"\xD0\xCF\x11\xE0"), "an Inventor file is a CFB container with the MS-CFB signature");
+    imports_the_inventor_box(bytes, "box.ipt");
+}
+
+/// In cadmpeg 0.6.5 this Inventor 2027 assembly's occurrence records are outside the codec's
+/// implemented branch, so the file is refused with its name in the message, not read partially.
+/// (Corliss reads this envelope; the history import lands with it.)
+#[test]
+fn inventor_assembly_gives_a_clean_error() {
+    let bytes = BOX_IAM;
+    assert!(bytes.starts_with(b"\xD0\xCF\x11\xE0"), "an Inventor assembly is a CFB container too");
+    let e = native_cad_to_step(bytes, "box.iam").expect_err("box.iam");
+    assert!(e.starts_with("box.iam"), "{e}");
+}
+
+/// Only FreeCAD, Rhino and Inventor contents are read: STEP text, garbage, a bad ZIP and empty
+/// input are refused with a message, as are ACIS, ShapeManager and the other commercial formats
+/// whatever their bytes.
 #[test]
 fn other_contents_are_refused() {
     let step = STEP_TEXT;
     let fcstd = BLOCK_FCSTD;
-    let cases: [(&[u8], &str); 9] = [
+    let cases: [(&[u8], &str); 10] = [
         (step.as_bytes(), "x.3dm"),
         (step.as_bytes(), "x.fcstd"),
+        (step.as_bytes(), "x.ipt"),
         (b"\0\0garbage", "x.3dm"),
         (b"PK\x03\x04junk", "x.fcstd"),
-        (b"", "x.3dm"),
+        (b"", "x.ipt"),
         (b"700 0 1 0\n", "x.sat"),
         (b"ASM BinaryFile4", "x.smb"),
         (fcstd, "x.f3d"),
@@ -79,7 +128,7 @@ fn other_contents_are_refused() {
 /// error or a solid, never a panic.
 #[test]
 fn hostile_native_cad_never_panics() {
-    for (good, name) in [(BLOCK_FCSTD, "hostile.FCStd"), (BLOCK_3DM, "hostile.3dm")] {
+    for (good, name) in [(BLOCK_FCSTD, "hostile.FCStd"), (BLOCK_3DM, "hostile.3dm"), (BOX_IPT, "hostile.ipt")] {
         let mut cases: Vec<Vec<u8>> = (0..good.len()).step_by((good.len() / 60).max(1)).map(|n| good[..n].to_vec()).collect();
         for i in (0..good.len()).step_by((good.len() / 80).max(1)) {
             let mut b = good.to_vec();

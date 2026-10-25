@@ -1,5 +1,5 @@
-//! FreeCAD and Rhino files (read through cadmpeg) go the same way as STEP files: a new rigid
-//! component named after the file (#1426), with the `up` and `names` options (#1312).
+//! FreeCAD, Rhino and Inventor files (read through cadmpeg) go the same way as STEP files: a
+//! new rigid component named after the file (#1426), with the `up` and `names` options (#1312).
 
 use serde_json::{Value, json};
 
@@ -8,6 +8,8 @@ use crate::*;
 
 const BLOCK_FCSTD: &[u8] = include_bytes!("../../../io/src/native_cad/fixtures/block.FCStd");
 const BLOCK_3DM: &[u8] = include_bytes!("../../../io/src/native_cad/fixtures/block.3dm");
+const BOX_IPT: &[u8] = include_bytes!("../../../io/src/native_cad/fixtures/box.ipt");
+const BOX_IAM: &[u8] = include_bytes!("../../../io/src/native_cad/fixtures/box.iam");
 
 /// `bytes` saved as `name` in a fresh temp directory.
 fn file(tag: &str, name: &str, bytes: &[u8]) -> (std::path::PathBuf, String) {
@@ -73,14 +75,54 @@ fn freecad_and_rhino_files_come_in_as_a_component_named_after_the_file() {
     }
 }
 
+/// An Inventor part goes in as a component too: the fixture is a 20 × 20 × 10 mm box (Inventor
+/// stores lengths in centimetres; the file's own name is its template, "Standard (in)").
+#[test]
+fn inventor_part_comes_in_as_a_component_named_after_the_file() {
+    let (dir, path) = file("inv", "box.ipt", BOX_IPT);
+    let mut s = Session::default();
+    run(&mut s, "solid.box", json!({"length": 5, "width": 5, "height": 5, "corner": [100, 0, 0]}));
+    let r = run(&mut s, "file.insert_step", json!({"path": path}));
+    assert_eq!(r["component_name"], "box", "{r}");
+    let feature = r["feature"].as_u64().unwrap();
+    assert_eq!(s.doc.feature(feature).unwrap().kind.type_name(), "BaseFeature");
+    assert!((volume(&mut s) - (4000.0 + 125.0)).abs() < 1e-6);
+    assert!(body_names(&s).iter().any(|n| n == "Standard (in)" || n == "box"), "{:?}", body_names(&s));
+
+    let mut d = Session::default();
+    let r = run(&mut d, "doc.open", json!({"path": path}));
+    assert_eq!((r["features"].clone(), r["component_name"].clone()), (json!(1), json!("box")), "{r}");
+    assert!(near(extent(&d).1, [20.0, 20.0, 10.0]), "{:?}", extent(&d));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The one-occurrence Inventor assembly of the fixture part: cadmpeg 0.6.5's codec does not
+/// implement its occurrence records yet, so it is refused with its name, not read partially.
+#[test]
+fn inventor_assembly_is_refused_cleanly() {
+    let (dir, path) = file("inv-iam", "box.iam", BOX_IAM);
+    let mut s = Session::default();
+    run(&mut s, "solid.box", json!({"length": 5, "width": 5, "height": 5}));
+    let before = s.doc.clone();
+    let e: Result<Value> = s.execute("file.insert_step", &json!({"path": path}));
+    let e = e.expect_err("box.iam").to_string();
+    assert!(e.contains("box.iam"), "{e}");
+    assert!(!e.contains("internal"), "{e}");
+    assert_eq!(s.doc, before, "the design is unchanged");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A broken file is refused with a message naming it, and the design is left as it was.
 #[test]
 fn a_broken_freecad_or_rhino_file_is_refused_cleanly() {
     let mut cut = BLOCK_FCSTD[..BLOCK_FCSTD.len() / 2].to_vec();
     cut.extend_from_slice(b"garbage");
-    for (tag, name, bytes) in
-        [("bad-fc", "broken.FCStd", cut.as_slice()), ("bad-rh", "broken.3dm", &BLOCK_3DM[..200]), ("acis", "cube.sat", b"700 0 1 0\n")]
-    {
+    for (tag, name, bytes) in [
+        ("bad-fc", "broken.FCStd", cut.as_slice()),
+        ("bad-rh", "broken.3dm", &BLOCK_3DM[..200]),
+        ("bad-inv", "broken.ipt", &BOX_IPT[..200]),
+        ("acis", "cube.sat", b"700 0 1 0\n"),
+    ] {
         let (dir, path) = file(tag, name, bytes);
         let mut s = Session::default();
         run(&mut s, "solid.box", json!({"length": 5, "width": 5, "height": 5}));

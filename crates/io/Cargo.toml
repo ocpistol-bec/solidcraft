@@ -1,6 +1,6 @@
 [package]
 name = "solidcraft-io"
-description = "SolidCraft file formats: designs (JSON), STL, OBJ, STEP, IGES, 3MF and glTF, and FreeCAD/Rhino import"
+description = "SolidCraft file formats: designs (JSON), STL, OBJ, STEP, IGES, 3MF and glTF, and FreeCAD/Rhino/Inventor import"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -39,3 +39,6 @@ rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 # The computer's name for a design's lock file (src/design_lock.rs; the browser keeps no lock files).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gethostname = { workspace = true }
+# Inventor feature history (corliss, GPL-2.0-only, vendor/corliss): pure Rust, but kept out of
+# the browser build for now.
+corliss = { workspace = true }

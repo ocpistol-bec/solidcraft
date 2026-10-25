@@ -210,6 +210,8 @@ Editable drawing code, native projects and shipped exports are collected under `
 | assets/styles/web/loading.css | SolidCraft contributors | Original SolidCraft resource data or drawing code, collected without redesign | MIT OR Apache-2.0 |
 | crates/io/src/native_cad/fixtures/block.FCStd | SolidCraft contributors | original 10 × 20 × 30 mm test box saved by FreeCAD 1.1.4 run as an external program (`make_block_fcstd.py` beside it); no third-party geometry | MIT OR Apache-2.0 |
 | crates/io/src/native_cad/fixtures/block.3dm | SolidCraft contributors | original 10 × 20 × 30 mm test box written with McNeel's MIT-licensed rhino3dm Python package (`make_block_3dm.py` beside it); no third-party geometry | MIT OR Apache-2.0 |
+| crates/io/src/native_cad/fixtures/box.ipt | SolidCraft contributors | 2 × 2 cm test square extruded 1 cm, saved by Autodesk Inventor 2027; test data from the public Corliss format-library corpus (data, not code) | MIT OR Apache-2.0 |
+| crates/io/src/native_cad/fixtures/box.iam | SolidCraft contributors | the one-occurrence Inventor 2027 assembly of `box.ipt`; test data from the public Corliss format-library corpus (data, not code) | MIT OR Apache-2.0 |
 | assets/icons/ui/design/aliases.toml | SolidCraft contributors | icon ids that share a master, original SolidCraft data | MIT OR Apache-2.0 |
 | assets/icons/ui/design/palette.toml | SolidCraft contributors | icon colour roles (light and dark) and accents, original SolidCraft data | MIT OR Apache-2.0 |
 | assets/icons/ui/design/svg/flat/bug_report.svg | SolidCraft contributors | single-colour application/navigation icon master (64 grid), original SolidCraft artwork | MIT OR Apache-2.0 |
@@ -636,15 +638,24 @@ in THIRD-PARTY-LICENSES.txt; no images or artwork from that project are copied.
 The glTF test files are built by the tests themselves (crates/io/src/gltf_in_tests.rs,
 crates/engine/src/tests/gltf_import.rs); no third-party models are committed.
 
-## FreeCAD and Rhino import library
+## FreeCAD, Rhino and Inventor import library
 
-FreeCAD `.FCStd` and Rhino `.3dm` files are read with [cadmpeg](https://github.com/cadmpeg/cadmpeg)
-0.6.3 (Apache-2.0), linked as the crates `cadmpeg-core`, `cadmpeg-ir`, `cadmpeg-registry`,
-`cadmpeg-container`, `cadmpeg-codec-freecad`, `cadmpeg-codec-rhino` and `cadmpeg-codec-step`
-in native and browser builds (`crates/io/src/native_cad.rs`). Only those open-format codecs are built: no
-default features, so cadmpeg's codecs for commercial CAD formats and its ShapeManager/ACIS
-codec are not compiled in. Its licence text is in THIRD-PARTY-LICENSES.txt; no code from it is
+FreeCAD `.FCStd`, Rhino `.3dm` and Inventor `.ipt` / `.iam` files are read with
+[cadmpeg](https://github.com/cadmpeg/cadmpeg) 0.6.5 (Apache-2.0), linked as the crates
+`cadmpeg-core`, `cadmpeg-ir`, `cadmpeg-registry`, `cadmpeg-container`, `cadmpeg-codec-freecad`,
+`cadmpeg-codec-rhino`, `cadmpeg-codec-inventor`, `cadmpeg-asm`, `cadmpeg-protein` and
+`cadmpeg-codec-step` in native and browser builds (`crates/io/src/native_cad.rs`). No default
+features: cadmpeg's codecs for the other commercial CAD formats and its ShapeManager/ACIS `sat`
+codec are not compiled in. The Inventor codec transfers part geometry into connected B-rep,
+restated as STEP (the newest Inventor releases' assembly occurrence records are not in its
+implemented branch yet). Its licence text is in THIRD-PARTY-LICENSES.txt; no code from it is
 copied into SolidCraft.
+
+The Inventor test fixtures (`crates/io/src/native_cad/fixtures/box.ipt`, `box.iam`) are a 2 × 2
+cm square sketch extruded 1 cm and its one-occurrence assembly, saved by Autodesk Inventor 2027
+and taken from the public test corpus of the Corliss format library
+(https://github.com/Oblikovati/Corliss, GPL-2.0 — the fixtures are data, not code); no
+open-source Inventor writer exists.
 
 ## Recovered contributions
 
