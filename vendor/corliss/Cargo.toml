@@ -1,0 +1,32 @@
+[package]
+name = "corliss"
+version = "0.1.0"
+description = "Read and write Autodesk Inventor documents (.ipt, .iam, .idw, .ipn, .ide) and project files (.ipj) for CAD kernel interoperability."
+edition = "2024"
+rust-version = "1.98.1"
+license = "GPL-2.0-only"
+repository = "https://github.com/Oblikovati/Corliss"
+readme = "README.md"
+keywords = ["inventor", "cad", "ipt", "iam", "idw"]
+categories = ["parser-implementations", "encoding"]
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+# SolidCraft: vendored from https://github.com/Oblikovati/Corliss (main, 0.1.0); the workspace,
+# xtask member, examples and tests (and their fixtures) are not vendored.
+
+[dependencies]
+cfb = "0.15"
+flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
+ruzstd = "0.9"
+uuid = "1"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"

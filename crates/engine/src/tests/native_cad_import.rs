@@ -75,10 +75,11 @@ fn freecad_and_rhino_files_come_in_as_a_component_named_after_the_file() {
     }
 }
 
-/// An Inventor part goes in as a component too: the fixture is a 20 × 20 × 10 mm box (Inventor
-/// stores lengths in centimetres; the file's own name is its template, "Standard (in)").
+/// An Inventor part inserted (as opposed to opened) goes in as a component too: the fixture is
+/// a 20 × 20 × 10 mm box (Inventor stores lengths in centimetres; the file's own name is its
+/// template, "Standard (in)").
 #[test]
-fn inventor_part_comes_in_as_a_component_named_after_the_file() {
+fn inventor_part_inserts_as_a_component_named_after_the_file() {
     let (dir, path) = file("inv", "box.ipt", BOX_IPT);
     let mut s = Session::default();
     run(&mut s, "solid.box", json!({"length": 5, "width": 5, "height": 5, "corner": [100, 0, 0]}));
@@ -88,11 +89,30 @@ fn inventor_part_comes_in_as_a_component_named_after_the_file() {
     assert_eq!(s.doc.feature(feature).unwrap().kind.type_name(), "BaseFeature");
     assert!((volume(&mut s) - (4000.0 + 125.0)).abs() < 1e-6);
     assert!(body_names(&s).iter().any(|n| n == "Standard (in)" || n == "box"), "{:?}", body_names(&s));
+    let _ = std::fs::remove_dir_all(&dir);
+}
 
-    let mut d = Session::default();
-    let r = run(&mut d, "doc.open", json!({"path": path}));
-    assert_eq!((r["features"].clone(), r["component_name"].clone()), (json!(1), json!("box")), "{r}");
-    assert!(near(extent(&d).1, [20.0, 20.0, 10.0]), "{:?}", extent(&d));
+/// An Inventor part *opened* is its own editable history: the file's sketch and extrude as
+/// SolidCraft features, its parameters on the table, and the part regenerating from them — the
+/// file's user parameter drives the extrusion depth.
+#[test]
+fn inventor_part_opens_as_editable_history() {
+    let (dir, path) = file("inv-hist", "box.ipt", BOX_IPT);
+    let mut s = Session::default();
+    let r = run(&mut s, "doc.open", json!({"path": path}));
+    assert_eq!(r["editable_history_imported"], true, "{r}");
+    assert_eq!(r["features"], 2, "the sketch and the extrude: {r}");
+    assert_eq!(r["errors"], 0, "{r}");
+    assert!(near(extent(&s).1, [20.0, 20.0, 10.0]), "{:?}", extent(&s));
+    assert_eq!(s.doc.params.iter().filter(|p| p.name == "my_len").count(), 1, "the file's parameter comes in named");
+
+    // The history is live: the file's user parameter drives the extrusion depth.
+    let before = s.doc.clone();
+    run(&mut s, "parameters.change", json!({"name": "my_len", "expression": "30"}));
+    assert!((volume(&mut s) - 12000.0).abs() < 1e-6, "my_len 30 mm: 20 × 20 × 30");
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.doc, before, "the undo takes the edit back");
+    assert!((volume(&mut s) - 4000.0).abs() < 1e-6);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

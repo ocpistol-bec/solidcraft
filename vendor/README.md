@@ -1,8 +1,20 @@
 # Vendored third-party crates
 
 Copies of third-party crates that SolidCraft builds with local fixes, wired in with
-`[patch.crates-io]` in the workspace `Cargo.toml`. They keep their own licence; changed lines
-are marked `SolidCraft:` in the source.
+`[patch.crates-io]` (crates also on crates.io) or as path dependencies (crates not published
+yet, `corliss`). They keep their own licence; changed lines are marked `SolidCraft:` in the
+source.
+
+## corliss 0.1.0 (GPL-2.0-only, © Oblikovati, https://github.com/Oblikovati/Corliss)
+
+Vendored from `main` as the published-crate shape (`include`): `src/`, manifest, README,
+changelog and licence; the workspace, `xtask`, examples and tests (and their 298-document
+Inventor fixture corpus) are not vendored. No local changes yet.
+
+SolidCraft links it in native builds only (`crates/io`), for Inventor feature-history import:
+`crates/io/src/inventor` decodes `.ipt`/`.iam` documents into parameters, sketches (with
+constraints and dimensions), features and sheet-metal settings, and reads the ACIS B-rep for
+recovery. The browser build keeps the format out for now, as it keeps the cadmpeg formats out.
 
 ## truck-shapeops 0.4.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/truck)
 

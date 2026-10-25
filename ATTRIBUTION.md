@@ -657,6 +657,17 @@ and taken from the public test corpus of the Corliss format library
 (https://github.com/Oblikovati/Corliss, GPL-2.0 — the fixtures are data, not code); no
 open-source Inventor writer exists.
 
+## Inventor import library
+
+Inventor `.ipt` / `.iam` feature history is read with [Corliss](https://github.com/Oblikovati/Corliss)
+0.1.0 (GPL-2.0-only), vendored at `vendor/corliss` (the published-crate shape; no changes yet)
+and linked in native builds (`crates/io/src/inventor`), alongside its permissive dependencies
+`cfb`, `flate2` (rust backend), `ruzstd` and `uuid`. The library decodes the Inventor document
+into typed parameters, sketches (entities, constraints, dimensions), features and sheet-metal
+settings, and reads the ACIS B-rep, which SolidCraft restates as STEP for recovery. Linking it
+makes the native builds of the SolidCraft app and CLI available under the app's licence
+disjunct or GPL-2.0-only; the design files they read and write are unaffected.
+
 ## Recovered contributions
 
 | SolidCraft file | Original contribution | Licence |

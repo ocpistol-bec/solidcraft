@@ -81,6 +81,11 @@ cadmpeg-core = "=0.6.5"
 cadmpeg-ir = "=0.6.5"
 cadmpeg-registry = { version = "=0.6.5", default-features = false, features = ["fcstd", "rhino", "inventor", "step"] }
 
+# Inventor feature-history import (GPL-2.0-only, pure Rust; vendor/corliss and ATTRIBUTION.md):
+# decodes .ipt/.iam documents — parameters, sketches with constraints, features, sheet metal,
+# and the ACIS B-rep for recovery — which crates/io restates as native features.
+corliss = { path = "vendor/corliss" }
+
 # fonts (sketch text outlines; MIT OR Apache-2.0, pure Rust)
 ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
 

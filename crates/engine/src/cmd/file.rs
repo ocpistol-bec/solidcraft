@@ -290,6 +290,42 @@ fn open(s: &mut Session, p: &Value) -> Result<Value> {
         out["errors"] = json!(s.model.results.iter().filter(|r| r.error.is_some()).count());
         return Ok(out);
     }
+
+
+    // An Inventor part opens as its editable history (its own sketches and features) when the
+    // import rebuilds them and they regenerate; otherwise it opens as geometry, below, with a
+    // note saying why the history was not taken.
+    let inventor_note: Option<String> = if solidcraft_io::is_inventor_path(path) {
+        let stem = std::path::Path::new(path).file_stem().map(|x| x.to_string_lossy().to_string()).unwrap_or_else(|| "Untitled".into());
+        match solidcraft_io::vfs::read(path, solidcraft_io::MAX_STEP_BYTES)
+            .map_err(|e| format!("{path}: {e}"))
+            .and_then(|bytes| solidcraft_io::import_inventor(&bytes, &stem).map_err(|e| e.to_string()))
+        {
+            Ok((doc, warnings)) => {
+                let mut fresh = Session::new(doc);
+                let errors: Vec<String> =
+                    fresh.model.results.iter().filter_map(|r| r.error.as_ref().map(|e| format!("feature {}: {e}", r.id))).collect();
+                if errors.is_empty() {
+                    fresh.undo.clear();
+                    s.replace_design(fresh);
+                    s.path = Some(path.to_string());
+                    return Ok(json!({
+                        "path": path,
+                        "features": s.doc.features.len(),
+                        "errors": 0,
+                        "bodies": s.model.state().bodies.len(),
+                        "warnings": warnings,
+                        "editable_history_imported": true,
+                        "representation": "editable_history",
+                    }));
+                }
+                Some(format!("{path}: Inventor history rebuilt but did not regenerate ({:?}); opened as geometry", errors.join("; ")))
+            }
+            Err(e) => Some(format!("{e}; opened as geometry")),
+        }
+    } else {
+        None
+    };
     if solidcraft_io::is_step_path(path) || solidcraft_io::is_mesh_path(path) {
         // A new, unsaved design holding the file's bodies.
         let stem = std::path::Path::new(path).file_stem().map(|x| x.to_string_lossy().to_string()).unwrap_or_else(|| "Untitled".into());
@@ -308,6 +344,9 @@ fn open(s: &mut Session, p: &Value) -> Result<Value> {
         s.replace_design(fresh);
         let errors = s.model.results.iter().filter(|r| r.error.is_some()).count();
         let mut out = json!({"path": path, "features": s.doc.features.len(), "errors": errors, "bodies": r["bodies"], "warnings": r["warnings"]});
+        if let (Some(note), Some(warnings)) = (inventor_note, out["warnings"].as_array_mut()) {
+            warnings.push(json!(note));
+        }
         for k in ["component", "component_name", "occurrence", "subcomponents", "rigid_joints", "stand_up", "system", "exporter", "exporter_up"] {
             if let Some(v) = r.get(k) {
                 out[k] = v.clone();

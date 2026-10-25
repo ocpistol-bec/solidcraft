@@ -13,6 +13,7 @@ mod design_metadata;
 mod dxf;
 mod dxf_out;
 pub mod formats;
+pub mod inventor;
 pub use design::{
     DesignCompression, DesignContainerReader, DesignPreview, THUMBNAIL_SIZE, is_design_container, read_design_file, read_design_geometry,
     read_design_preview, read_design_thumbnail, read_design_thumbnail_file, write_design_container, write_design_container_with_cache,
@@ -22,6 +23,7 @@ mod legacy_dir;
 #[cfg(test)]
 mod mutate;
 mod native_cad;
+pub use inventor::{import_inventor, is_inventor_path};
 pub use native_cad::{NATIVE_CAD_EXTS, is_native_cad_path, native_cad_to_step};
 pub mod safe_write;
 mod sketch2d;

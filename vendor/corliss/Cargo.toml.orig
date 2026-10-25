@@ -1,0 +1,45 @@
+[package]
+name = "corliss"
+version = "0.1.0"
+description = "Read and write Autodesk Inventor documents (.ipt, .iam, .idw, .ipn, .ide) and project files (.ipj) for CAD kernel interoperability."
+edition = "2024"
+rust-version = "1.98.1"
+license = "GPL-2.0-only"
+repository = "https://github.com/Oblikovati/Corliss"
+readme = "README.md"
+keywords = ["inventor", "cad", "ipt", "iam", "idw"]
+categories = ["parser-implementations", "encoding"]
+# The published crate is the library only: tests need the fixtures, which stay in the repository.
+include = ["src/**", "Cargo.toml", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[workspace]
+# `xtask` holds the CI gates and release check; it is never published.
+members = [".", "xtask"]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+
+[dependencies]
+cfb = "0.15"
+flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
+ruzstd = "0.9"
+uuid = "1"
+
+[dev-dependencies]
+tempfile = "3"
+serde_json = "1"
+
+# The fixture corpus inflates ~2,500 zstd and zlib streams per run; unoptimized codecs make that slow.
+[profile.dev.package.ruzstd]
+opt-level = 3
+
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+# The grammar interpreter runs ~570,000 fixture nodes per `cargo test`; unoptimized it takes minutes.
+[profile.dev.package.corliss]
+opt-level = 1
