@@ -61,6 +61,8 @@ const USAGE_RUN: &str = "  solidcraft-cli run <script.json|design.sc|part.step> 
 const USAGE_EVAL: &str = "  solidcraft-cli eval <script.json|design.sc|part.step> [--in design.sc|part.step] [--json-out FILE]     (alias: inspect)\n  solidcraft-cli eval --in <script.json|design.sc|part.step> [--json-out FILE]\n      (with both inputs, runs the positional script on --in before measuring; does not automatically save the modified design)\n      (--json-out FILE writes the JSON that run (with --results, else the measurement) and eval print to FILE instead of stdout,\n       as plain UTF-8: a shell's > can re-encode it, e.g. Windows PowerShell adds a byte-order mark)\n";
 /// `script`'s lines in the usage.
 const USAGE_SCRIPT: &str = "  solidcraft-cli script <design.sc|script.json> [--out script.json]\n      (the design's history as a command script that eval and run replay)\n";
+/// `convert`'s lines in the usage.
+const USAGE_CONVERT: &str = "  solidcraft-cli convert <part.step|part.igs|file.fcstd|file.3dm|file.ipt|file.iam> --out part.step\n      (reads the file as doc.open would and writes the STEP AP214 text the Import feature holds,\n       so the part reopens without the original file)\n";
 /// `bench-open`'s lines in the usage.
 const USAGE_BENCH_OPEN: &str = "  solidcraft-cli bench-open <design.sc | part.step> [--parse-only] [--save OUT.sc] [--display LEVEL [--edit NAME EXPR]] [--ops script.json]\n      (--ops: after opening, run each command of the script and undo it, timing the command, the\n       evaluations it caused and the view it leaves: placing and meshing what changed)\n";
 /// `bench-agent`'s lines in the usage.
@@ -107,6 +109,7 @@ const COMMANDS: &[Command] = &[
     Command { name: "eval", usage: USAGE_EVAL, listed: true },
     Command { name: "inspect", usage: USAGE_EVAL, listed: false },
     Command { name: "script", usage: USAGE_SCRIPT, listed: true },
+    Command { name: "convert", usage: USAGE_CONVERT, listed: true },
     Command { name: "bench-open", usage: USAGE_BENCH_OPEN, listed: true },
     Command { name: "bench-agent", usage: USAGE_BENCH_AGENT, listed: true },
     Command { name: "bench-assistant", usage: USAGE_BENCH_ASSISTANT, listed: true },
@@ -142,6 +145,7 @@ fn main() -> ExitCode {
         Some("run") => cmd_run(&args[1..]),
         Some("eval" | "inspect") => cmd_eval(&args[1..]),
         Some("script") => cmd_script(&args[1..]),
+        Some("convert") => cmd_convert(&args[1..]),
         Some("snapshot") => cmd_snapshot(&args[1..]),
         Some("render") => render::run(&args[1..]),
         Some("exec") => cmd_exec(&args[1..]),
@@ -473,6 +477,26 @@ fn cmd_script(args: &[String]) -> Result<(), String> {
         Some(out) => eprintln!("{out}: {} steps", r["steps"]),
         None => println!("{}", pretty(&r["script"])),
     }
+    Ok(())
+}
+
+/// `convert`: a CAD file as doc.open reads it, restated as the STEP AP214 text the Import
+/// feature holds. The PDM's `cad.convert` job runs this on check-in to store a STEP that
+/// reopens without the original file.
+fn cmd_convert(args: &[String]) -> Result<(), String> {
+    let path = positional(args).ok_or("usage: solidcraft-cli convert <part.step|file.fcstd|file.3dm|file.ipt|file.iam> --out part.step")?;
+    let out = flag(args, "--out").ok_or("convert needs --out FILE.step")?;
+    if !solidcraft_engine::io::is_step_path(path) {
+        return Err(format!("{path}: convert reads STEP, IGES, FreeCAD, Rhino or Inventor files"));
+    }
+    let bytes = solidcraft_engine::io::vfs::read(path, solidcraft_engine::io::MAX_STEP_BYTES).map_err(|e| format!("{path}: {e}"))?;
+    let imported = solidcraft_engine::io::step_import_feature(&bytes, path).map_err(|e| e.to_string())?;
+    let step = match &imported.kind {
+        solidcraft_engine::doc::FeatureKind::Import { step, .. } => step.clone(),
+        _ => return Err("convert: the import did not hold STEP text".into()),
+    };
+    solidcraft_engine::io::write_atomic(std::path::Path::new(out), step.as_bytes(), false).map_err(|e| format!("{out}: {e}"))?;
+    eprintln!("{out}: {} bodies, {} warning(s)", imported.import.bodies.len(), imported.warnings.len());
     Ok(())
 }
 
